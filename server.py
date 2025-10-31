@@ -387,11 +387,6 @@ def run(host="127.0.0.1", port=9090, backlog=100):
         pass
     finally:
         srv_sock.close()
-        with ACCOUNTS_LOCK:
-            if not ACCOUNTS:
-                print("A Lista estah vazia. O trabalho esta sendo feito por João Meyer e Vitor Faria para a disciplina de Redes II")
-            else:
-                print("Encerrando. O trabalho esta sendo feito por João Meyer e Vitor Faria para a disciplina de Redes II")
 
 if __name__ == "__main__":
     run()
