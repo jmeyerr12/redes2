@@ -1,4 +1,4 @@
-#   MiniCoin — Servidor TCP com Blockchain Simplificada (100% procedural)
+#   MiniCoin — Servidor TCP com Blockchain Simplificada 
 #   Objetivo: implementar uma moeda virtual didática baseada em lista encadeada de registros (blockchain),
 #             com criação de contas (bloco gênese), depósitos, saques com validação de saldo, transferências
 #             entre contas e verificação de integridade encadeada via SHA-256. Protocolo linha-a-linha,
@@ -6,7 +6,7 @@
 #   Restrições/escopo: um único servidor mantém todas as cadeias em memória; entradas numéricas inteiras;
 #             sem persistência em disco; sem segurança de transporte; atendimento concorrente por threads.
 #
-#   Autores: João Meyer e Vitor Faria
+#   Autores originais: João Meyer e Vitor Faria
 #   Disciplina: Redes II
 
 import socket
@@ -87,6 +87,7 @@ def new_chain(owner: str, initial_deposit: int) -> dict:
     }
 
 def _append(chain: dict, rec: dict) -> None:
+    # requer que o lock da cadeia já esteja adquirido
     tail = chain["tail"]
     rec["prev_hash"] = tail["curr_hash"]
     rec["curr_hash"] = _compute_hash_record(rec)
@@ -97,10 +98,17 @@ def get_balance(chain: dict) -> int:
     with chain["lock"]:
         return chain["balance"]
 
+def _ensure_integrity_or_raise(chain: dict) -> None:
+    ok, idx, reason = verify_integrity(chain)
+    if not ok:
+        raise RuntimeError(f"cadeia corrompida no indice {idx}: {reason}")
+
 def deposit(chain: dict, amount: int) -> dict:
     if amount <= 0:
         raise ValueError("Depósito deve ser > 0")
     with chain["lock"]:
+        # valida integridade ANTES de modificar
+        _ensure_integrity_or_raise(chain)
         rec = _make_record("DEPOSIT", amount)
         _append(chain, rec)
         chain["balance"] += amount
@@ -110,6 +118,8 @@ def withdraw(chain: dict, amount: int):
     if amount <= 0:
         return False, None, "Valor de retirada deve ser > 0"
     with chain["lock"]:
+        # valida integridade ANTES de modificar
+        _ensure_integrity_or_raise(chain)
         if amount > chain["balance"]:
             return False, None, "impossivel retirar, saldo insuficiente!"
         rec = _make_record("WITHDRAW", amount)
@@ -124,6 +134,7 @@ def iter_records(chain: dict):
         cur = cur["next"]
 
 def verify_integrity(chain: dict):
+    # varredura completa da cadeia
     with chain["lock"]:
         idx = 0
         prev = None
@@ -154,6 +165,47 @@ def to_list(chain: dict):
             })
             i += 1
         return out
+
+def transfer_atomic(src: dict, dst: dict, amt: int):
+    """
+    Transfere de src -> dst de forma atômica:
+    - Bloqueia as duas cadeias em ordem determinística para evitar deadlock
+    - Verifica integridade de ambas
+    - Checa saldo
+    - Aplica WITHDRAW em src e DEPOSIT em dst
+    Retorna: (ok: bool, msg: str)
+    """
+    if amt <= 0:
+        return False, "amount deve ser > 0"
+
+    # Ordem determinística de locks para evitar deadlock
+    # usa o nome do dono (estável e legível)
+    first, second = (src, dst) if src["owner"] <= dst["owner"] else (dst, src)
+
+    with first["lock"]:
+        with second["lock"]:
+            # verifica integridade antes de qualquer modificação
+            ok_src, idx_src, reason_src = verify_integrity(src)
+            if not ok_src:
+                return False, f"cadeia de '{src['owner']}' corrompida no indice {idx_src}: {reason_src}"
+            ok_dst, idx_dst, reason_dst = verify_integrity(dst)
+            if not ok_dst:
+                return False, f"cadeia de '{dst['owner']}' corrompida no indice {idx_dst}: {reason_dst}"
+
+            if amt > src["balance"]:
+                return False, "impossivel retirar, saldo insuficiente!"
+
+            # aplica saque em src
+            rec_w = _make_record("WITHDRAW", amt)
+            _append(src, rec_w)
+            src["balance"] -= amt
+
+            # aplica deposito em dst
+            rec_d = _make_record("DEPOSIT", amt)
+            _append(dst, rec_d)
+            dst["balance"] += amt
+
+            return True, "transferencia concluida"
 
 # ----------------- REDE / PROTOCOLO -----------------
 ACCOUNTS = {}          # owner -> chain dict
@@ -273,13 +325,12 @@ def handle_client(conn, addr):
                     log_erro(f"impossivel transferir, conta '{to_owner}' inexistente!")
                     continue
 
-                ok, _, msg = withdraw(src, amt)
+                ok, msg = transfer_atomic(src, dst, amt)
                 if not ok:
                     conn.sendall(_resp_bytes(False, error=f"falha ao transferir: {msg}", balance_src=get_balance(src)))
                     log_erro(f"impossivel transferir {amt} de '{from_owner}' para '{to_owner}', {msg}")
                     continue
 
-                deposit(dst, amt)
                 conn.sendall(_resp_bytes(
                     True,
                     message=f"transferência de {amt} MC de {from_owner} para {to_owner} concluída",
@@ -310,7 +361,7 @@ def handle_client(conn, addr):
                         continue
                     try:
                         amt = int(args[1])
-                        deposit(chain, amt)
+                        deposit(chain, amt)  # valida integridade internamente
                         conn.sendall(_resp_bytes(True, owner=owner, balance=get_balance(chain)))
                         log(f"Inseri deposito = {amt} na conta '{owner}'")
                         print(f"Saldo '{owner}' = {get_balance(chain)}")
@@ -319,6 +370,7 @@ def handle_client(conn, addr):
                         log_erro(f"impossivel depositar em '{owner}', {e}!")
                     continue
 
+                    # WITHDRAW
                 if cmd == "WITHDRAW":
                     if len(args) != 2:
                         conn.sendall(_resp_bytes(False, error="uso: WITHDRAW <owner> <amount>"))
@@ -330,7 +382,7 @@ def handle_client(conn, addr):
                         conn.sendall(_resp_bytes(False, error="amount deve ser inteiro"))
                         log_erro("impossivel sacar, valor invalido!")
                         continue
-                    ok, _, msg = withdraw(chain, amt)
+                    ok, _, msg = withdraw(chain, amt)  # valida integridade internamente
                     if ok:
                         conn.sendall(_resp_bytes(True, owner=owner, balance=get_balance(chain)))
                         log(f"Removi {amt} da conta '{owner}'")
@@ -341,6 +393,7 @@ def handle_client(conn, addr):
                     continue
 
                 if cmd == "BALANCE":
+                    # opcional: poderíamos validar aqui também; mantido leve
                     conn.sendall(_resp_bytes(True, owner=owner, balance=get_balance(chain)))
                     print(f"Saldo de '{owner}' = {get_balance(chain)}")
                     continue
