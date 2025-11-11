@@ -15,6 +15,7 @@ import json
 from datetime import datetime, timezone
 import hashlib
 import sys
+import argparse
 
 # ----------------- LOGS -----------------
 def log(msg: str) -> None:
@@ -442,4 +443,9 @@ def run(host="127.0.0.1", port=9090, backlog=100):
         srv_sock.close()
 
 if __name__ == "__main__":
-    run()
+    parser = argparse.ArgumentParser(description="Servidor TCP simples")
+    parser.add_argument("--host", default="127.0.0.1", help="Endereço para bind (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=9090, help="Porta para bind (default: 9090)")
+
+    args = parser.parse_args()
+    run(host=args.host, port=args.port)
