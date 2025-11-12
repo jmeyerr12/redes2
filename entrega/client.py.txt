@@ -3,7 +3,7 @@
 #             uma conexão TCP persistente, exibindo as respostas em JSON retornadas
 #             pelo servidor. Não requer bibliotecas externas.
 #   Restrições/escopo: o cliente apenas envia texto e recebe respostas linha-a-linha;
-#             não há interpretação interna da lógica de blockchain — toda validação
+#             não há interpretação interna da lógica de blockchain - toda validação
 #             e persistência ocorrem no servidor.
 #
 #   Autores: João Meyer e Vitor Faria
