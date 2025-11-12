@@ -1,4 +1,4 @@
-#   MiniCoin — Cliente TCP Interativo (REPL)
+#   MiniCoin - Cliente TCP Interativo (REPL)
 #   Objetivo: permitir que o usuário envie comandos ao servidor MiniCoin por meio de
 #             uma conexão TCP persistente, exibindo as respostas em JSON retornadas
 #             pelo servidor. Não requer bibliotecas externas.

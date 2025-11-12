@@ -1,4 +1,4 @@
-#   MiniCoin — Servidor TCP com Blockchain Simplificada 
+#   MiniCoin - Servidor TCP com Blockchain Simplificada 
 #   Objetivo: implementar uma moeda virtual didática baseada em lista encadeada de registros (blockchain),
 #             com criação de contas (bloco gênese), depósitos, saques com validação de saldo, transferências
 #             entre contas e verificação de integridade encadeada via SHA-256. Protocolo linha-a-linha,
