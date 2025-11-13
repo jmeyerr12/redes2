@@ -1,13 +1,8 @@
-#   MiniCoin - Servidor TCP com Blockchain Simplificada 
-#   Objetivo: implementar uma moeda virtual didática baseada em lista encadeada de registros (blockchain),
-#             com criação de contas (bloco gênese), depósitos, saques com validação de saldo, transferências
-#             entre contas e verificação de integridade encadeada via SHA-256. Protocolo linha-a-linha,
-#             respostas em JSON por linha.
-#   Restrições/escopo: um único servidor mantém todas as cadeias em memória; entradas numéricas inteiras;
-#             sem persistência em disco; sem segurança de transporte; atendimento concorrente por threads.
-#
-#   Autores originais: João Meyer e Vitor Faria
-#   Disciplina: Redes II
+# minicoin - servidor tcp com blockchain simplificada
+# implementa uma moeda virtual didatica baseada em lista encadeada de registros
+# suporta criacao de contas, depositos, saques, transferencias e verificacao de integridade
+# protocolo linha-a-linha; respostas em json por linha
+# autores: joao meyer e vitor faria
 
 import socket
 import threading
@@ -17,7 +12,7 @@ import hashlib
 import sys
 import argparse
 
-# ----------------- LOGS -----------------
+# SECAO DOS LOGS ---------------------
 def log(msg: str) -> None:
     print(msg, flush=True)
 
@@ -29,6 +24,7 @@ def log_banner_inicio(host, port):
     print()
 
 def log_lista_vazia_ou_contas():
+    # mostra as contas atualmente ativas
     with ACCOUNTS_LOCK:
         if not ACCOUNTS:
             print("Nao ha contas ativas.")
@@ -37,20 +33,24 @@ def log_lista_vazia_ou_contas():
             print(f"Contas ativas: [ {donos} ]")
 
 def log_ver_cadeia(owner: str, chain_list):
+    # exibe os indices da cadeia de um usuario
     idxs = " ".join(str(b['index']) for b in chain_list)
     print(f"Veja a Cadeia de '{owner}': [ {idxs} ]")
 
 def log_erro(msg: str):
+    # log padrao de erro para manter rastreabilidade
     print(f"ERRO: {msg}", file=sys.stdout, flush=True)
 
-# ----------------- CORE (procedural) -----------------
+# SECAO DA BLOCKCHAIN -------------
 def _utcnow_iso() -> str:
+    # retorna timestamp utc iso 8601
     return datetime.now(timezone.utc).isoformat()
 
 def _sha256_str(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 def _compute_hash_record(rec: dict) -> str:
+    # calcula hash canonico do payload do bloco
     payload = {
         "owner": rec.get("owner") or "",
         "operation": rec["operation"],
@@ -62,12 +62,13 @@ def _compute_hash_record(rec: dict) -> str:
     return _sha256_str(canon)
 
 def _make_record(operation: str, amount: int, owner=None, prev_hash=None) -> dict:
+    # cria um registro de operacao (genesis/deposit/withdraw)
     rec = {
         "operation": operation,   # "GENESIS" | "DEPOSIT" | "WITHDRAW"
         "amount": amount,
         "timestamp": _utcnow_iso(),
-        "owner": owner,           # só no gênese; nos demais fica None
-        "prev_hash": prev_hash,   # antes de calcular curr_hash
+        "owner": owner,           # so no genesis; demais = None
+        "prev_hash": prev_hash,   # definido antes de calcular curr_hash
         "curr_hash": None,
         "next": None
     }
@@ -75,6 +76,7 @@ def _make_record(operation: str, amount: int, owner=None, prev_hash=None) -> dic
     return rec
 
 def new_chain(owner: str, initial_deposit: int) -> dict:
+    # cria cadeia para um dono com bloco genesis
     if initial_deposit <= 0:
         raise ValueError("Depósito inicial deve ser > 0")
     lock = threading.RLock()
@@ -88,7 +90,7 @@ def new_chain(owner: str, initial_deposit: int) -> dict:
     }
 
 def _append(chain: dict, rec: dict) -> None:
-    # requer que o lock da cadeia já esteja adquirido
+    # requer que o lock da cadeia ja esteja adquirido
     tail = chain["tail"]
     rec["prev_hash"] = tail["curr_hash"]
     rec["curr_hash"] = _compute_hash_record(rec)
@@ -96,15 +98,18 @@ def _append(chain: dict, rec: dict) -> None:
     chain["tail"] = rec
 
 def get_balance(chain: dict) -> int:
+    # leitura de saldo em o(1)
     with chain["lock"]:
         return chain["balance"]
 
 def _ensure_integrity_or_raise(chain: dict) -> None:
+    # valida integridade completa antes de mutar estado
     ok, idx, reason = verify_integrity(chain)
     if not ok:
         raise RuntimeError(f"cadeia corrompida no indice {idx}: {reason}")
 
 def deposit(chain: dict, amount: int) -> dict:
+    # deposito com checagem de integridade e atualizacao de saldo
     if amount <= 0:
         raise ValueError("Depósito deve ser > 0")
     with chain["lock"]:
@@ -116,6 +121,7 @@ def deposit(chain: dict, amount: int) -> dict:
         return rec
 
 def withdraw(chain: dict, amount: int):
+    # saque com validacao de saldo e integridade
     if amount <= 0:
         return False, None, "Valor de retirada deve ser > 0"
     with chain["lock"]:
@@ -129,13 +135,14 @@ def withdraw(chain: dict, amount: int):
         return True, rec, "Retirada efetuada."
 
 def iter_records(chain: dict):
+    # iterador simples pela lista encadeada
     cur = chain["head"]
     while cur:
         yield cur
         cur = cur["next"]
 
 def verify_integrity(chain: dict):
-    # varredura completa da cadeia
+    # varredura completa conferindo prev_hash e curr_hash
     with chain["lock"]:
         idx = 0
         prev = None
@@ -151,6 +158,7 @@ def verify_integrity(chain: dict):
         return True, None, None
 
 def to_list(chain: dict):
+    # materializa a cadeia em lista de dicts para json
     with chain["lock"]:
         out = []
         i = 0
@@ -179,13 +187,12 @@ def transfer_atomic(src: dict, dst: dict, amt: int):
     if amt <= 0:
         return False, "amount deve ser > 0"
 
-    # Ordem determinística de locks para evitar deadlock
-    # usa o nome do dono (estável e legível)
+    # ordem deterministica de locks usando o nome do dono
     first, second = (src, dst) if src["owner"] <= dst["owner"] else (dst, src)
 
     with first["lock"]:
         with second["lock"]:
-            # verifica integridade antes de qualquer modificação
+            # verifica integridade antes de qualquer modificacao
             ok_src, idx_src, reason_src = verify_integrity(src)
             if not ok_src:
                 return False, f"cadeia de '{src['owner']}' corrompida no indice {idx_src}: {reason_src}"
@@ -208,16 +215,18 @@ def transfer_atomic(src: dict, dst: dict, amt: int):
 
             return True, "transferencia concluida"
 
-# ----------------- REDE / PROTOCOLO -----------------
+# SECAO DO PROTOCOLO TCP -------------------
 ACCOUNTS = {}          # owner -> chain dict
 ACCOUNTS_LOCK = threading.RLock()
 
 def _resp_bytes(ok=True, **data):
+    # monta objeto de resposta e retorna bytes terminados com \n
     obj = {"ok": ok}
     obj.update(data)
     return (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
 
 def recvline(sock):
+    # le byte a byte ate encontrar \n (protocolo linha-a-linha)
     data = bytearray()
     while True:
         ch = sock.recv(1)
@@ -229,6 +238,7 @@ def recvline(sock):
     return data.decode("utf-8", errors="replace")
 
 def handle_client(conn, addr):
+    # loop de atendimento do cliente conectado
     try:
         conn.sendall(_resp_bytes(True, message="MiniCoin TCP pronto. Use HELP."))
         while True:
@@ -262,6 +272,7 @@ def handle_client(conn, addr):
                 continue
 
             if cmd == "INIT":
+                # cria conta com bloco genesis
                 if len(args) != 2:
                     conn.sendall(_resp_bytes(False, error="uso: INIT <owner> <initial>"))
                     log_erro("impossivel criar conta, uso correto: INIT <owner> <initial>")
@@ -292,6 +303,7 @@ def handle_client(conn, addr):
                 continue
 
             if cmd == "ACCOUNTS":
+                # lista contas conhecidas
                 with ACCOUNTS_LOCK:
                     owners = sorted(ACCOUNTS.keys())
                 conn.sendall(_resp_bytes(True, owners=owners))
@@ -302,6 +314,7 @@ def handle_client(conn, addr):
                 continue
 
             if cmd == "TRANSFER":
+                # transfere de uma conta para outra usando travas ordenadas
                 if len(args) != 3:
                     conn.sendall(_resp_bytes(False, error="uso: TRANSFER <from_owner> <to_owner> <amount>"))
                     log_erro("impossivel transferir, uso correto: TRANSFER <from_owner> <to_owner> <amount>")
@@ -343,6 +356,7 @@ def handle_client(conn, addr):
                 continue
 
             if cmd in ("DEPOSIT", "WITHDRAW", "BALANCE", "CHAIN", "VERIFY"):
+                # obtencao de cadeia-alvo
                 if len(args) < 1:
                     conn.sendall(_resp_bytes(False, error=f"uso: {cmd} <owner> ..."))
                     log_erro(f"uso incorreto de {cmd}")
@@ -356,6 +370,7 @@ def handle_client(conn, addr):
                     continue
 
                 if cmd == "DEPOSIT":
+                    # deposito simples
                     if len(args) != 2:
                         conn.sendall(_resp_bytes(False, error="uso: DEPOSIT <owner> <amount>"))
                         log_erro("impossivel depositar, uso correto: DEPOSIT <owner> <amount>")
@@ -371,8 +386,8 @@ def handle_client(conn, addr):
                         log_erro(f"impossivel depositar em '{owner}', {e}!")
                     continue
 
-                    # WITHDRAW
                 if cmd == "WITHDRAW":
+                    # saque simples
                     if len(args) != 2:
                         conn.sendall(_resp_bytes(False, error="uso: WITHDRAW <owner> <amount>"))
                         log_erro("impossivel sacar, uso correto: WITHDRAW <owner> <amount>")
@@ -394,18 +409,20 @@ def handle_client(conn, addr):
                     continue
 
                 if cmd == "BALANCE":
-                    # opcional: poderíamos validar aqui também; mantido leve
+                    # leitura de saldo sem recomputo
                     conn.sendall(_resp_bytes(True, owner=owner, balance=get_balance(chain)))
                     print(f"Saldo de '{owner}' = {get_balance(chain)}")
                     continue
 
                 if cmd == "CHAIN":
+                    # retorna cadeia materializada
                     lst = to_list(chain)
                     conn.sendall(_resp_bytes(True, owner=owner, chain=lst))
                     log_ver_cadeia(owner, lst)
                     continue
 
                 if cmd == "VERIFY":
+                    # checa integridade ponta-a-ponta
                     ok, idx, reason = verify_integrity(chain)
                     conn.sendall(_resp_bytes(ok, owner=owner, index=idx, reason=reason))
                     if ok:
@@ -414,11 +431,12 @@ def handle_client(conn, addr):
                         log_erro(f"Falha de integridade em '{owner}' no indice {idx}: {reason}")
                     continue
 
-            # Comando desconhecido
+            # comando desconhecido
             conn.sendall(_resp_bytes(False, error=f"comando desconhecido: {cmd}"))
             log_erro(f"comando desconhecido: {cmd}")
 
     except Exception as e:
+        # captura de excecao para nao derrubar o processo principal
         log_erro(f"excecao na conexao {addr}: {e}")
     finally:
         try:
@@ -427,6 +445,7 @@ def handle_client(conn, addr):
             pass
 
 def run(host="127.0.0.1", port=9090, backlog=100):
+    # loop de accept com threads por conexao
     log_banner_inicio(host, port)
     srv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -442,6 +461,7 @@ def run(host="127.0.0.1", port=9090, backlog=100):
     finally:
         srv_sock.close()
 
+# MAIN -----------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Servidor TCP simples")
     parser.add_argument("--host", default="127.0.0.1", help="Endereço para bind (default: 127.0.0.1)")

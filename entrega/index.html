@@ -112,18 +112,36 @@
     <h3>Servidor</h3>
     <pre id='logs-servidor'>
 =====================================
-inicio da execucao: servidor MiniCoin
+Inicio da execucao: servidor MiniCoin
 =====================================
 MiniCoin TCP server em 127.0.0.1:9090
 
-inseri conta 'maria' com deposito inicial = 100
-contas ativas: [ maria ]
-veja a cadeia de 'maria': [ 0 ]
-inseri conta 'joao' com deposito inicial = 50
-contas ativas: [ joao maria ]
-veja a cadeia de 'joao': [ 0 ]
-contas ativas: [ joao maria ]
-erro: erro ao depositar em 'joao': deposito deve ser > 0
+Inseri conta 'maria' com deposito inicial = 100
+Contas ativas: [ maria ]
+Veja a Cadeia de 'maria': [ 0 ]
+Inseri conta 'joao' com deposito inicial = 50
+Contas ativas: [ joao maria ]
+Veja a Cadeia de 'joao': [ 0 ]
+Inseri deposito = 40 na conta 'maria'
+Saldo 'maria' = 140
+Removi 10 da conta 'joao'
+Saldo 'joao' = 40
+Saldo de 'maria' = 140
+Saldo de 'joao' = 40
+Transferi 60 MC: 'maria' -> 'joao'
+Saldo 'maria' = 80 | Saldo 'joao' = 100
+Saldo de 'maria' = 80
+Saldo de 'joao' = 100
+ERRO: comando desconhecido: VEIRFY
+Cadeia de 'maria' integra.
+Cadeia de 'joao' integra.
+Veja a Cadeia de 'maria': [ 0 1 2 ]
+Veja a Cadeia de 'joao': [ 0 1 2 ]
+Veja as contas ativas: [ joao maria ]
+ERRO: impossivel remover 999 da conta 'maria', impossivel retirar, saldo insuficiente!
+ERRO: impossivel depositar em 'joao', Depósito deve ser > 0!
+ERRO: impossivel transferir 0 de 'maria' para 'joao', amount deve ser > 0
+ERRO: impossivel operar, conta 'carlos' inexistente!
     </pre>
 
     <h3>Cliente</h3>
@@ -136,35 +154,37 @@ minicoin> INIT joao 50
 minicoin> DEPOSIT maria 40
 {"ok": true, "owner": "maria", "balance": 140}
 minicoin> WITHDRAW joao 10
-{"ok": true, "owner": "joao", "balance": 40, "message": "retirada efetuada"}
+{"ok": true, "owner": "joao", "balance": 40}
 minicoin> BALANCE maria
 {"ok": true, "owner": "maria", "balance": 140}
 minicoin> BALANCE joao
 {"ok": true, "owner": "joao", "balance": 40}
 minicoin> TRANSFER maria joao 60
-{"ok": true, "message": "transferencia concluida", "balance_src": 80, "balance_dst": 100}
+{"ok": true, "message": "transferência de 60 MC de maria para joao concluída", "balance_src": 80, "balance_dst": 100}
 minicoin> BALANCE maria
 {"ok": true, "owner": "maria", "balance": 80}
 minicoin> BALANCE joao
 {"ok": true, "owner": "joao", "balance": 100}
+minicoin> VEIRFY maria
+{"ok": false, "error": "comando desconhecido: VEIRFY"}
 minicoin> VERIFY maria
 {"ok": true, "owner": "maria", "index": null, "reason": null}
 minicoin> VERIFY joao
 {"ok": true, "owner": "joao", "index": null, "reason": null}
 minicoin> CHAIN maria
-{"ok": true, "owner": "maria", "chain": [{"index": 0, "operation": "GENESIS", "owner": "maria", "amount": 100, "timestamp": "...", "prev_hash": "000...", "curr_hash": "84b..."}, {"index": 1, "operation": "DEPOSIT", "owner": null, "amount": 40, "timestamp": "...", "prev_hash": "84b...", "curr_hash": "c4d..."}, {"index": 2, "operation": "WITHDRAW", "owner": null, "amount": 60, "timestamp": "...", "prev_hash": "c4d...", "curr_hash": "b8d..."}]}
+{"ok": true, "owner": "maria", "chain": [{"index": 0, "operation": "GENESIS", "owner": "maria", "amount": 100, "timestamp": "2025-11-13T23:17:50.659213+00:00", "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000", "curr_hash": "4779fea020d80d4219182f456b546be9e9e93ad73876907d1275f21a1fbef5a0"}, {"index": 1, "operation": "DEPOSIT", "owner": null, "amount": 40, "timestamp": "2025-11-13T23:17:55.653729+00:00", "prev_hash": "4779fea020d80d4219182f456b546be9e9e93ad73876907d1275f21a1fbef5a0", "curr_hash": "bb8977bfc9e4a926400eacb748506b00f353985cbe9ab483eeb4576cd3a557d5"}, {"index": 2, "operation": "WITHDRAW", "owner": null, "amount": 60, "timestamp": "2025-11-13T23:18:37.233446+00:00", "prev_hash": "bb8977bfc9e4a926400eacb748506b00f353985cbe9ab483eeb4576cd3a557d5", "curr_hash": "cf293f1563d521aeff5be7440bc45d94efcce17a0dd46042d358106da28c2e10"}]}
 minicoin> CHAIN joao
-{"ok": true, "owner": "joao", "chain": [{"index": 0, "operation": "GENESIS", "owner": "joao", "amount": 50, "timestamp": "...", "prev_hash": "000...", "curr_hash": "dc2..."}, {"index": 1, "operation": "WITHDRAW", "owner": null, "amount": 10, "timestamp": "...", "prev_hash": "dc2...", "curr_hash": "321..."}, {"index": 2, "operation": "DEPOSIT", "owner": null, "amount": 60, "timestamp": "...", "prev_hash": "321...", "curr_hash": "901..."}]}
+{"ok": true, "owner": "joao", "chain": [{"index": 0, "operation": "GENESIS", "owner": "joao", "amount": 50, "timestamp": "2025-11-13T23:17:52.830395+00:00", "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000", "curr_hash": "3a693d18e6875300fa514a06d97c2edc3d40e3f686167b4e63c1df5ed3e7186e"}, {"index": 1, "operation": "WITHDRAW", "owner": null, "amount": 10, "timestamp": "2025-11-13T23:17:59.697320+00:00", "prev_hash": "3a693d18e6875300fa514a06d97c2edc3d40e3f686167b4e63c1df5ed3e7186e", "curr_hash": "3dd64509434b69d43390dcfef56fe86760c95ab3c265e9997085dbd61586afb6"}, {"index": 2, "operation": "DEPOSIT", "owner": null, "amount": 60, "timestamp": "2025-11-13T23:18:37.233482+00:00", "prev_hash": "3dd64509434b69d43390dcfef56fe86760c95ab3c265e9997085dbd61586afb6", "curr_hash": "01a190af54e57057d17224aae2c049c142335347a87f19059968d7481d438090"}]}
 minicoin> ACCOUNTS
 {"ok": true, "owners": ["joao", "maria"]}
 minicoin> WITHDRAW maria 999
-{"ok": false, "owner": "maria", "balance": 80, "message": "saldo insuficiente"}
+{"ok": false, "error": "impossivel retirar, saldo insuficiente!", "owner": "maria", "balance": 80}
 minicoin> DEPOSIT joao -5
-{"ok": false, "error": "deposito deve ser > 0"}
+{"ok": false, "error": "Depósito deve ser > 0"}
 minicoin> TRANSFER maria joao 0
-{"ok": false, "message": "amount deve ser > 0", "balance_src": 80, "balance_dst": 100}
+{"ok": false, "error": "falha ao transferir: amount deve ser > 0", "balance_src": 80}
 minicoin> BALANCE carlos
-{"ok": false, "error": "conta 'carlos' nao existe"}
+{"ok": false, "error": "conta 'carlos' não existe"}
 minicoin> QUIT
 {"ok": true, "message": "bye"}
     </pre>
