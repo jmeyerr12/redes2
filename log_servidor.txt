@@ -1,0 +1,13 @@
+=====================================
+inicio da execucao: servidor MiniCoin
+=====================================
+MiniCoin TCP server em 127.0.0.1:9090
+
+inseri conta 'maria' com deposito inicial = 100
+contas ativas: [ maria ]
+veja a cadeia de 'maria': [ 0 ]
+inseri conta 'joao' com deposito inicial = 50
+contas ativas: [ joao maria ]
+veja a cadeia de 'joao': [ 0 ]
+contas ativas: [ joao maria ]
+erro: erro ao depositar em 'joao': deposito deve ser > 0

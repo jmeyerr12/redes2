@@ -1,0 +1,39 @@
+{"ok": true, "message": "MiniCoin TCP pronto. Use HELP."}
+minicoin> INIT maria 100
+{"ok": true, "owner": "maria", "balance": 100}
+minicoin> INIT joao 50
+{"ok": true, "owner": "joao", "balance": 50}
+minicoin> DEPOSIT maria 40
+{"ok": true, "owner": "maria", "balance": 140}
+minicoin> WITHDRAW joao 10
+{"ok": true, "owner": "joao", "balance": 40, "message": "retirada efetuada"}
+minicoin> BALANCE maria
+{"ok": true, "owner": "maria", "balance": 140}
+minicoin> BALANCE joao
+{"ok": true, "owner": "joao", "balance": 40}
+minicoin> TRANSFER maria joao 60
+{"ok": true, "message": "transferencia concluida", "balance_src": 80, "balance_dst": 100}
+minicoin> BALANCE maria
+{"ok": true, "owner": "maria", "balance": 80}
+minicoin> BALANCE joao
+{"ok": true, "owner": "joao", "balance": 100}
+minicoin> VERIFY maria
+{"ok": true, "owner": "maria", "index": null, "reason": null}
+minicoin> VERIFY joao
+{"ok": true, "owner": "joao", "index": null, "reason": null}
+minicoin> CHAIN maria
+{"ok": true, "owner": "maria", "chain": [{"index": 0, "operation": "GENESIS", "owner": "maria", "amount": 100, "timestamp": "2025-11-13T22:45:00.446235+00:00", "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000", "curr_hash": "84b452a1ad6456b9f10bfedc2b6c666b99a30f8b23506603ee1bd6463c25afa3"}, {"index": 1, "operation": "DEPOSIT", "owner": null, "amount": 40, "timestamp": "2025-11-13T22:45:08.678275+00:00", "prev_hash": "84b452a1ad6456b9f10bfedc2b6c666b99a30f8b23506603ee1bd6463c25afa3", "curr_hash": "c4d813cd82badab19449161b39ce1da08b5025613ffc06cc551e8634fe6c66c4"}, {"index": 2, "operation": "WITHDRAW", "owner": null, "amount": 60, "timestamp": "2025-11-13T22:45:32.029135+00:00", "prev_hash": "c4d813cd82badab19449161b39ce1da08b5025613ffc06cc551e8634fe6c66c4", "curr_hash": "b8d643255eff8fc37c7f4b62f6f5ce58bb3cd23015b3dee2f25409c6933d3e32"}]}
+minicoin> CHAIN joao
+{"ok": true, "owner": "joao", "chain": [{"index": 0, "operation": "GENESIS", "owner": "joao", "amount": 50, "timestamp": "2025-11-13T22:45:05.811608+00:00", "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000", "curr_hash": "dc21b16742c998408dd7dcd954c588d661736a573960738d8db0e3e8b8ec1e44"}, {"index": 1, "operation": "WITHDRAW", "owner": null, "amount": 10, "timestamp": "2025-11-13T22:45:13.188156+00:00", "prev_hash": "dc21b16742c998408dd7dcd954c588d661736a573960738d8db0e3e8b8ec1e44", "curr_hash": "3215c672d7ec145ad19e5391526f5531496b69c7398972865a202d2e8956772a"}, {"index": 2, "operation": "DEPOSIT", "owner": null, "amount": 60, "timestamp": "2025-11-13T22:45:32.029176+00:00", "prev_hash": "3215c672d7ec145ad19e5391526f5531496b69c7398972865a202d2e8956772a", "curr_hash": "901ff01f77418db2a4a5adfcdbc19bc9c7a178c1682f06e016423310c4c61c75"}]}
+minicoin> ACCOUNTS
+{"ok": true, "owners": ["joao", "maria"]}
+minicoin> WITHDRAW maria 999
+{"ok": false, "owner": "maria", "balance": 80, "message": "saldo insuficiente"}
+minicoin> DEPOSIT joao -5
+{"ok": false, "error": "deposito deve ser > 0"}
+minicoin> TRANSFER maria joao 0
+{"ok": false, "message": "amount deve ser > 0", "balance_src": 80, "balance_dst": 100}
+minicoin> BALANCE carlos
+{"ok": false, "error": "conta 'carlos' nao existe"}
+minicoin> QUIT
+{"ok": true, "message": "bye"}

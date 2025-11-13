@@ -23,52 +23,52 @@
 
     <h3>1. Visão geral</h3>
     <p>
-      O MiniCoin implementa uma moeda virtual didática com <strong>servidor TCP</strong> concorrente e um
-      <strong>cliente interativo (REPL)</strong>. Cada conta possui uma <em>blockchain simplificada</em> mantida em memória:
+      O MiniCoin implementa uma moeda virtual didática com servidor TCP concorrente e um
+      cliente interativo (REPL). Cada conta possui uma blockchain simplificada mantida em memória:
       uma lista encadeada de registros (blocos) com encadeamento por <code>prev_hash</code> e validação de integridade via
-      <code>SHA-256</code> do payload canônico. As respostas do servidor são sempre <strong>JSON por linha</strong>.
+      <code>SHA-256</code> do payload canônico. As respostas do servidor são sempre JSON por linha.
     </p>
 
     <h3>2. Fluxo de uma sessão típica</h3>
 <pre class='diagram'>
 [Cliente REPL]                  [Servidor MiniCoin]
     |                                  |
-    | conectar ----------------------&gt; | envia banner: {"ok": true, "message": "..."}
-    | comando em texto --------------&gt; | parse + dispatch do comando
+    | conectar ----------------------> | envia banner: {"ok": true, "message": "..."}
+    | comando em texto --------------> | parse + dispatch do comando
     |                                  | valida integridade/saldo/entradas
     |                                  | executa operação (locks + atualização)
-    | &lt;------------------------------- | JSON por linha com {ok, ...}
+    | <------------------------------- | JSON por linha com {ok, ...}
     | repetir até QUIT                 | encerra conexão
 </pre>
 
     <h3>3. Protocolo</h3>
     <p>
-      Comunicação <strong>linha-a-linha</strong> em TCP persistente. O cliente envia uma linha de texto por comando.
-      O servidor responde com um <strong>JSON em uma única linha</strong> contendo a chave <code>ok</code> e os dados da resposta
-      (ex.: <code>{'ok': true, 'owner': 'alice', 'balance': 130}</code>). Em erros, <code>ok=false</code> e um campo <code>error</code>.
+      Comunicação linha-a-linha em TCP persistente. O cliente envia uma linha de texto por comando.
+      O servidor responde com um JSON em uma única linha contendo a chave <code>ok</code> e os dados da resposta
+      (ex.: <code>{'ok': true, 'owner': 'joaozinho', 'balance': 130}</code>). Em erros, <code>ok=false</code> e um campo <code>error</code>.
     </p>
 
     <h3>4. Estrutura de dados do bloco</h3>
     <p>
-      Cada bloco guarda <code>operation</code> (<em>GENESIS</em>, <em>DEPOSIT</em>, <em>WITHDRAW</em>), <code>amount</code>,
+      Cada bloco guarda <code>operation</code> (GENESIS, DEPOSIT, WITHDRAW), <code>amount</code>,
       <code>timestamp</code>, <code>owner?</code> (apenas no gênese), <code>prev_hash</code>, <code>curr_hash</code> e o ponteiro <code>next</code>.
-      O <code>curr_hash</code> é calculado sobre o <strong>JSON canônico</strong> do payload
+      O <code>curr_hash</code> é calculado sobre o JSON canônico do payload
       (ordem de chaves fixa + separadores enxutos). O gênese usa <code>prev_hash = '0'*64</code>.
     </p>
     <ul>
-      <li><strong>Invariantes:</strong> para todo bloco i, <code>prev_hash[i] = curr_hash[i-1]</code>; <code>curr_hash</code> confere com o payload.</li>
-      <li><strong>Saldo:</strong> acumulado por cadeia para leitura O(1).</li>
-      <li><strong>Iteração:</strong> utilitários para percorrer e materializar a cadeia em lista para o comando <code>CHAIN</code>.</li>
+      <li>Invariantes: para todo bloco i, <code>prev_hash[i] = curr_hash[i-1]</code>; <code>curr_hash</code> confere com o payload.</li>
+      <li>Saldo: acumulado por cadeia para leitura O(1).</li>
+      <li>Iteração: utilitários para percorrer e materializar a cadeia em lista para o comando <code>CHAIN</code>.</li>
     </ul>
 
     <h3>5. Concorrência e atomicidade</h3>
     <ul>
-      <li><strong>Mapa de contas:</strong> protegido por <code>ACCOUNTS_LOCK</code> (RLock) para criar/obter cadeias.</li>
-      <li><strong>Cadeia por conta:</strong> cada conta possui um <code>RLock</code> próprio; operações adquirem o lock da conta.</li>
-      <li><strong>Transferência:</strong> bloqueia as duas cadeias em <em>ordem determinística</em> (por nome do owner) para evitar deadlock;
-        verifica integridade de ambas; desconta do remetente e credita no destinatário <strong>atomicamente</strong>.</li>
-      <li><strong>Integridade antes de mutar:</strong> <code>deposit()</code> e <code>withdraw()</code> chamam verificação de integridade
-        antes de alterar o estado; <code>withdraw()</code> falha se <em>saldo insuficiente</em>.</li>
+      <li>Mapa de contas: protegido por <code>ACCOUNTS_LOCK</code> (RLock) para criar/obter cadeias.</li>
+      <li>Cadeia por conta: cada conta possui um <code>RLock</code> próprio; operações adquirem o lock da conta.</li>
+      <li>Transferência: bloqueia as duas cadeias em ordem determinística (por nome do owner) para evitar deadlock;
+        verifica integridade de ambas; desconta do remetente e credita no destinatário atomicamente.</li>
+      <li>Integridade antes de mutar: <code>deposit()</code> e <code>withdraw()</code> chamam verificação de integridade
+        antes de alterar o estado; <code>withdraw()</code> falha se saldo insuficiente.</li>
     </ul>
 
     <h3>6. Comandos</h3>
@@ -80,13 +80,12 @@
 
     <h3>7. Casos de teste</h3>
     <ul>
-      <li>Criação: <code>INIT alice 100</code> &rarr; <code>ok=true</code> e saldo 100.</li>
-      <li>Depósito: <code>DEPOSIT alice 30</code> &rarr; saldo 130.</li>
-      <li>Saque válido: <code>WITHDRAW alice 50</code> &rarr; saldo 80.</li>
-      <li>Saque inválido: <code>WITHDRAW alice 1000</code> &rarr; <code>ok=false</code>, erro de saldo.</li>
-      <li>Transferência: <code>INIT bob 120</code>; <code>TRANSFER alice bob 20</code>.</li>
-      <li>Integridade: <code>VERIFY alice</code> deve retornar <code>ok=true</code>.</li>
-      <li>Inspeção: <code>CHAIN alice</code> lista os blocos com hashes encadeados.</li>
+      <li>Criação: <code>INIT maria 100</code> e <code>INIT joao 50</code>.</li>
+      <li>Depósito: <code>DEPOSIT maria 40</code>.</li>
+      <li>Saque válido: <code>WITHDRAW joao 10</code>.</li>
+      <li>Transferência: <code>TRANSFER maria joao 60</code>.</li>
+      <li>Verificação: <code>VERIFY maria</code> e <code>VERIFY joao</code>.</li>
+      <li>Erros: depósito negativo, saldo insuficiente e conta inexistente.</li>
     </ul>
 
     <h3>8. Limitações</h3>
@@ -95,49 +94,86 @@
       <li>Inteiros positivos; sem segurança de transporte (TLS) e sem autenticação.</li>
       <li>Servidor único mantendo todas as cadeias.</li>
     </ul>
+
+    <h3>9. Escolhas de projeto</h3>
+    <ul>
+      <li>Protocolo texto linha-a-linha para facilitar testes com ferramentas simples e depuração.</li>
+      <li>Respostas em JSON em uma única linha para consumo fácil por scripts e clientes diversos.</li>
+      <li>Blockchain em memória usando lista encadeada para clareza e custo de implementação baixo.</li>
+      <li>Timestamp em formato ISO-8601 para registros consistentes.</li>
+      <li>Verificação de integridade obrigatória antes de operações que mudam entre estados.</li>
+    </ul>
   </section>
 
-  <!-- CARD 2: LOGS (ÁREA ABERTA PARA COLAR) -->
+  <!-- CARD 2: LOGS -->
   <section class='card' id='logs'>
     <h2>Logs de execução</h2>
-    <p>
-      Abaixo há dois blocos abertos para inserção de logs. Cole as saídas do terminal do
-      servidor e do cliente durante os testes. Se preferir, você pode substituir por links
-      para arquivos em <code>logs/servidor.log.txt</code> e <code>logs/cliente.log.txt</code>.
-    </p>
 
     <h3>Servidor</h3>
     <pre id='logs-servidor'>
-# cole aqui a saída do servidor (ex.: início, conexões aceitas, comandos, resultados)
-# exemplo de marcador sugerido no código: [LOG] conexão aceita de 127.0.0.1:54321
+=====================================
+inicio da execucao: servidor MiniCoin
+=====================================
+MiniCoin TCP server em 127.0.0.1:9090
+
+inseri conta 'maria' com deposito inicial = 100
+contas ativas: [ maria ]
+veja a cadeia de 'maria': [ 0 ]
+inseri conta 'joao' com deposito inicial = 50
+contas ativas: [ joao maria ]
+veja a cadeia de 'joao': [ 0 ]
+contas ativas: [ joao maria ]
+erro: erro ao depositar em 'joao': deposito deve ser > 0
     </pre>
 
     <h3>Cliente</h3>
     <pre id='logs-cliente'>
-# cole aqui os comandos digitados e as respostas JSON recebidas
-# ex.:
-# minicoin&gt; INIT alice 100
-# {'ok': true, 'owner': 'alice', 'balance': 100}
+{"ok": true, "message": "MiniCoin TCP pronto. Use HELP."}
+minicoin> INIT maria 100
+{"ok": true, "owner": "maria", "balance": 100}
+minicoin> INIT joao 50
+{"ok": true, "owner": "joao", "balance": 50}
+minicoin> DEPOSIT maria 40
+{"ok": true, "owner": "maria", "balance": 140}
+minicoin> WITHDRAW joao 10
+{"ok": true, "owner": "joao", "balance": 40, "message": "retirada efetuada"}
+minicoin> BALANCE maria
+{"ok": true, "owner": "maria", "balance": 140}
+minicoin> BALANCE joao
+{"ok": true, "owner": "joao", "balance": 40}
+minicoin> TRANSFER maria joao 60
+{"ok": true, "message": "transferencia concluida", "balance_src": 80, "balance_dst": 100}
+minicoin> BALANCE maria
+{"ok": true, "owner": "maria", "balance": 80}
+minicoin> BALANCE joao
+{"ok": true, "owner": "joao", "balance": 100}
+minicoin> VERIFY maria
+{"ok": true, "owner": "maria", "index": null, "reason": null}
+minicoin> VERIFY joao
+{"ok": true, "owner": "joao", "index": null, "reason": null}
+minicoin> CHAIN maria
+{"ok": true, "owner": "maria", "chain": [{"index": 0, "operation": "GENESIS", "owner": "maria", "amount": 100, "timestamp": "...", "prev_hash": "000...", "curr_hash": "84b..."}, {"index": 1, "operation": "DEPOSIT", "owner": null, "amount": 40, "timestamp": "...", "prev_hash": "84b...", "curr_hash": "c4d..."}, {"index": 2, "operation": "WITHDRAW", "owner": null, "amount": 60, "timestamp": "...", "prev_hash": "c4d...", "curr_hash": "b8d..."}]}
+minicoin> CHAIN joao
+{"ok": true, "owner": "joao", "chain": [{"index": 0, "operation": "GENESIS", "owner": "joao", "amount": 50, "timestamp": "...", "prev_hash": "000...", "curr_hash": "dc2..."}, {"index": 1, "operation": "WITHDRAW", "owner": null, "amount": 10, "timestamp": "...", "prev_hash": "dc2...", "curr_hash": "321..."}, {"index": 2, "operation": "DEPOSIT", "owner": null, "amount": 60, "timestamp": "...", "prev_hash": "321...", "curr_hash": "901..."}]}
+minicoin> ACCOUNTS
+{"ok": true, "owners": ["joao", "maria"]}
+minicoin> WITHDRAW maria 999
+{"ok": false, "owner": "maria", "balance": 80, "message": "saldo insuficiente"}
+minicoin> DEPOSIT joao -5
+{"ok": false, "error": "deposito deve ser > 0"}
+minicoin> TRANSFER maria joao 0
+{"ok": false, "message": "amount deve ser > 0", "balance_src": 80, "balance_dst": 100}
+minicoin> BALANCE carlos
+{"ok": false, "error": "conta 'carlos' nao existe"}
+minicoin> QUIT
+{"ok": true, "message": "bye"}
     </pre>
-
-    <details>
-      <summary>Pontos sugeridos para inserir logs no código</summary>
-<pre><code># server.py
-# - run(): após accept → conexão aceita (addr)
-# - handle_client(): início/fim do atendimento; comando recebido; resposta enviada
-# - new_chain/deposit/withdraw: operação, valor e saldo final
-# - transfer_atomic(): locks adquiridos, valor, saldos ao final
-# - verify_integrity(): índice e razão quando falhar
-
-# client.py
-# - comando digitado; resposta recebida; latência opcional por timestamp</code></pre>
-    </details>
   </section>
 
-  <!-- CARD 3: CÓDIGO-FONTE (.TXT) -->
+  <!-- CARD 3: CÓDIGO-FONTE -->
   <section class='card' id='codigo'>
     <h2>Código-fonte para download (.txt)</h2>
-    <p>Aquivos disponibilizados em <code>.txt</code></p>
+    <p>Arquivos disponibilizados em <code>.txt</code></p>
     <ul class='downloads'>
       <li><a href='client.py.txt' download>client.py.txt</a> - cliente TCP interativo</li>
       <li><a href='server.py.txt' download>server.py.txt</a> - servidor MiniCoin (blockchain)</li>

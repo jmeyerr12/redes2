@@ -1,30 +1,13 @@
-#   MiniCoin - Cliente TCP Interativo (REPL)
-#   Objetivo: permitir que o usuário envie comandos ao servidor MiniCoin por meio de
-#             uma conexão TCP persistente, exibindo as respostas em JSON retornadas
-#             pelo servidor. Não requer bibliotecas externas.
-#   Restrições/escopo: o cliente apenas envia texto e recebe respostas linha-a-linha;
-#             não há interpretação interna da lógica de blockchain - toda validação
-#             e persistência ocorrem no servidor.
-#
-#   Autores: João Meyer e Vitor Faria
-#   Disciplina: Redes II
-#
-# Comandos no prompt:
-#   HELP
-#   INIT <owner> <initial>
-#   DEPOSIT <owner> <amount>
-#   WITHDRAW <owner> <amount>
-#   BALANCE <owner>
-#   CHAIN <owner>
-#   VERIFY <owner>
-#   TRANSFER <owner_from> <owner_to> <amount>
-#   ACCOUNTS
-#   QUIT
+# cliente TCP interativo do MiniCoin (repl)
+# conecta ao servidor, envia comandos e mostra respostas em json
+# toda logica de validacao e blockchain fica no servidor
+# autores: Joao Meyer e Vitor Faria
 
 import socket
 import argparse
 
 def recvline(sock):
+    # le uma linha completa vinda do servidor
     data = bytearray()
     while True:
         ch = sock.recv(1)
@@ -36,33 +19,45 @@ def recvline(sock):
     return data.decode('utf-8', errors='replace')
 
 def main():
+    # argumentos de execucao (host e porta)
     ap = argparse.ArgumentParser(description="MiniCoin TCP Client (REPL)")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=9090)
     args = ap.parse_args()
 
+    # conecta ao servidor tcp
     with socket.create_connection((args.host, args.port)) as sock:
         hello = recvline(sock)
         if hello is not None:
             print(hello)
+
+        # loop principal do repl
         while True:
             try:
                 line = input("minicoin> ")
             except (EOFError, KeyboardInterrupt):
                 print()
                 line = "QUIT"
+
             if not line.strip():
                 continue
+
             try:
+                # envia comando ao servidor
                 sock.sendall((line.strip() + "\n").encode('utf-8'))
             except BrokenPipeError:
-                print("Conexão encerrada pelo servidor.")
+                print("conexao encerrada pelo servidor.")
                 break
+
+            # le resposta em json (1 linha)
             resp = recvline(sock)
             if resp is None:
-                print("Servidor fechou a conexão.")
+                print("servidor fechou a conexao.")
                 break
+
             print(resp)
+
+            # encerra se o usuario digitar quit ou exit
             if line.strip().upper() in ("QUIT", "EXIT"):
                 break
 
